@@ -26,9 +26,9 @@ export default class Editor extends Component {
 
   open(page) {
     // Записываем ту страницу, которую нужно открыть и сбрасываем кеширование
-    this.currentPage = `../../../${page}?rnd=${Math.random()}`;
+    this.currentPage = page;
 
-    axios.get(`../../../${page}`)
+    axios.get(`../../../${page}?rnd=${Math.random()}`)
       // С сервера получили строку и парсим её в DOM структуру
       .then(res => this.parseStrToDOM(res.data))
       // Оборачиваем все текстовые узлы. тут чистая копия 
@@ -46,16 +46,25 @@ export default class Editor extends Component {
       .then(() => this.enableEditing())
   }
 
+  save() {
+    const newDom = this.virtualDom.cloneNode(this.virtualDom);
+    this.unwrapTextNodes(newDom);
+    const html = this.serializeDOMToString(newDom);
+    console.log('[html] ', html);
+    axios
+      .post("../../../api/savePage.php", { pageName: this.currentPage, html })
+  }
+
   // Редактирование
   enableEditing() {
     this.iframe.contentDocument.body.querySelectorAll('text-editor').forEach(element => {
       element.contentEditable = "true";
       // Синхронизуем чистую и грязную копии
-      // element.addEventListener("input", () => {
-      //   this.onTextEdit(element);
-      // })
+      element.addEventListener("input", () => {
+        this.onTextEdit(element);
+      })
     });
-    console.log(this.virtualDom);
+    console.log('[enableEditing][virtualDom] ', this.virtualDom);
   }
 
   onTextEdit(element) {
@@ -105,6 +114,12 @@ export default class Editor extends Component {
     return serializer.serializeToString(dom);
   }
 
+  unwrapTextNodes(dom) {
+    dom.body.querySelectorAll("text-editor").forEach(element => {
+      element.parentNode.replaceChild(element.firstChild, element);
+    })
+  }
+
   // Загрузка страниц из API
   loadPageList() {
     axios.get("../../../api")
@@ -146,7 +161,11 @@ export default class Editor extends Component {
     // })
 
     return (
-      <iframe src={this.currentPage} frameBorder="0"></iframe>
+      <Fragment>
+        <button onClick={() => this.save()}>Сохранить</button>
+        <iframe src={this.currentPage} frameBorder="0"></iframe>
+      </Fragment>
+
 
       // <Fragment>
       //   <input

@@ -6907,8 +6907,8 @@ var Editor = /*#__PURE__*/function (_Component) {
       var _this2 = this;
 
       // Записываем ту страницу, которую нужно открыть и сбрасываем кеширование
-      this.currentPage = "../../../".concat(page, "?rnd=").concat(Math.random());
-      axios__WEBPACK_IMPORTED_MODULE_21___default.a.get("../../../".concat(page)) // С сервера получили строку и парсим её в DOM структуру
+      this.currentPage = page;
+      axios__WEBPACK_IMPORTED_MODULE_21___default.a.get("../../../".concat(page, "?rnd=").concat(Math.random())) // С сервера получили строку и парсим её в DOM структуру
       .then(function (res) {
         return _this2.parseStrToDOM(res.data);
       }) // Оборачиваем все текстовые узлы. тут чистая копия 
@@ -6927,18 +6927,33 @@ var Editor = /*#__PURE__*/function (_Component) {
       .then(function () {
         return _this2.enableEditing();
       });
+    }
+  }, {
+    key: "save",
+    value: function save() {
+      var newDom = this.virtualDom.cloneNode(this.virtualDom);
+      this.unwrapTextNodes(newDom);
+      var html = this.serializeDOMToString(newDom);
+      console.log('html ', html);
+      axios__WEBPACK_IMPORTED_MODULE_21___default.a.post("../../../api/savePage.php", {
+        pageName: this.currentPage,
+        html: html
+      });
     } // Редактирование
 
   }, {
     key: "enableEditing",
     value: function enableEditing() {
+      var _this3 = this;
+
       this.iframe.contentDocument.body.querySelectorAll('text-editor').forEach(function (element) {
         element.contentEditable = "true"; // Синхронизуем чистую и грязную копии
-        // element.addEventListener("input", () => {
-        //   this.onTextEdit(element);
-        // })
+
+        element.addEventListener("input", function () {
+          _this3.onTextEdit(element);
+        });
       });
-      console.log(this.virtualDom);
+      console.log('[enableEditing][virtualDom] ', this.virtualDom);
     }
   }, {
     key: "onTextEdit",
@@ -6986,15 +7001,22 @@ var Editor = /*#__PURE__*/function (_Component) {
     value: function serializeDOMToString(dom) {
       var serializer = new XMLSerializer();
       return serializer.serializeToString(dom);
+    }
+  }, {
+    key: "unwrapTextNodes",
+    value: function unwrapTextNodes(dom) {
+      dom.body.querySelectorAll("text-editor").forEach(function (element) {
+        element.parentNode.replaceChild(element.firstChild, element);
+      });
     } // Загрузка страниц из API
 
   }, {
     key: "loadPageList",
     value: function loadPageList() {
-      var _this3 = this;
+      var _this4 = this;
 
       axios__WEBPACK_IMPORTED_MODULE_21___default.a.get("../../../api").then(function (res) {
-        return _this3.setState({
+        return _this4.setState({
           pageList: res.data
         });
       });
@@ -7022,6 +7044,8 @@ var Editor = /*#__PURE__*/function (_Component) {
   }, {
     key: "render",
     value: function render() {
+      var _this5 = this;
+
       // const { pageList } = this.state;
       // console.log("pageList ", pageList);
       // const pages = pageList.map((page, index) => {
@@ -7037,10 +7061,14 @@ var Editor = /*#__PURE__*/function (_Component) {
       //     </h1>
       //   )
       // })
-      return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_20___default.a.createElement("iframe", {
+      return /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_20___default.a.createElement(react__WEBPACK_IMPORTED_MODULE_20__["Fragment"], null, /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_20___default.a.createElement("button", {
+        onClick: function onClick() {
+          return _this5.save();
+        }
+      }, "\u0421\u043E\u0445\u0440\u0430\u043D\u0438\u0442\u044C"), /*#__PURE__*/react__WEBPACK_IMPORTED_MODULE_20___default.a.createElement("iframe", {
         src: this.currentPage,
         frameBorder: "0"
-      }) // <Fragment>
+      })) // <Fragment>
       //   <input
       //     onChange={(e) => { this.setState({ newPageName: e.target.value }) }}
       //     type="text" />
