@@ -1,6 +1,8 @@
 import React, { Component, Fragment } from 'react';
 import axios from 'axios';
 import "../../helpers/iframeLoader.js";
+import DOMHelper from '../../helpers/dom-helper';
+import EditorText from '../editor-text/editor-text';
 
 export default class Editor extends Component {
   constructor() {
@@ -30,26 +32,28 @@ export default class Editor extends Component {
 
     axios.get(`../../../${page}?rnd=${Math.random()}`)
       // С сервера получили строку и парсим её в DOM структуру
-      .then(res => this.parseStrToDOM(res.data))
+      .then(res => DOMHelper.parseStrToDOM(res.data))
       // Оборачиваем все текстовые узлы. тут чистая копия 
-      .then(this.wrapTextNodes)
+      .then(DOMHelper.wrapTextNodes)
       // Сохраняем чистую копию в виртуальный DOM
       .then(dom => {
         this.virtualDom = dom;
         return dom;
       })
       // Для отправки на сервер преобразуем DOM в строку
-      .then(this.serializeDOMToString)
+      .then(DOMHelper.serializeDOMToString)
       .then(html => axios.post("../../../api/saveTempPage.php", { html }))
       .then(() => this.iframe.load("../../../temp.html"))
       // Включаем редактирование элементов
       .then(() => this.enableEditing())
+      // Стили при редактировании
+      .then(() => this.injectStyles())
   }
 
   save() {
     const newDom = this.virtualDom.cloneNode(this.virtualDom);
-    this.unwrapTextNodes(newDom);
-    const html = this.serializeDOMToString(newDom);
+    DOMHelper.unwrapTextNodes(newDom);
+    const html = DOMHelper.serializeDOMToString(newDom);
     console.log('[html] ', html);
     axios
       .post("../../../api/savePage.php", { pageName: this.currentPage, html })
@@ -58,66 +62,26 @@ export default class Editor extends Component {
   // Редактирование
   enableEditing() {
     this.iframe.contentDocument.body.querySelectorAll('text-editor').forEach(element => {
-      element.contentEditable = "true";
-      // Синхронизуем чистую и грязную копии
-      element.addEventListener("input", () => {
-        this.onTextEdit(element);
-      })
+      const id = element.getAttribute("nodeid");
+      const virtualElement = this.virtualDom.body.querySelector(`[nodeid="${id}"]`);
+
+      new EditorText(element, virtualElement);
     });
     console.log('[enableEditing][virtualDom] ', this.virtualDom);
   }
 
-  onTextEdit(element) {
-    console.log('[onTextEdit][element] ', element);
-    const id = element.getAttribute("nodeid");
-    this.virtualDom.body.querySelector(`[nodeid="${id}"]`).innerHTML = element.innerHTML;
-  }
-
-  // Строки превращаем в DOM структуру
-  parseStrToDOM(str) {
-    const parser = new DOMParser();
-    return parser.parseFromString(str, "text/html");
-  }
-
-  //Оборачиваем текстовые ноды во враперы
-  wrapTextNodes(dom) {
-    const body = dom.body;
-    let textNodes = [];
-
-    function recursy(element) {
-      element.childNodes.forEach(node => {
-
-        if (node.nodeName === "#text" && node.nodeValue.replace(/\s+/g, "").length > 0) {
-          textNodes.push(node);
-        } else {
-          recursy(node);
-        }
-
-      })
+  injectStyles() {
+    const style = this.iframe.contentDocument.createElement("style");
+    style.innerHTML = `
+    text-editor:hover {
+      outline: 3px solid orange;
+      outline-offset: 8px;
     }
-
-    recursy(body);
-
-    textNodes.forEach((node, i) => {
-      const wrapper = dom.createElement('text-editor');
-      node.parentNode.replaceChild(wrapper, node);
-      wrapper.appendChild(node);
-      wrapper.setAttribute("nodeid", i);
-    });
-
-    return dom;
-  }
-
-  // Превращаем DOM структуры в строку для отправки на сервер
-  serializeDOMToString(dom) {
-    const serializer = new XMLSerializer();
-    return serializer.serializeToString(dom);
-  }
-
-  unwrapTextNodes(dom) {
-    dom.body.querySelectorAll("text-editor").forEach(element => {
-      element.parentNode.replaceChild(element.firstChild, element);
-    })
+    text-editor:focus {
+      outline: 3px solid red;
+      outline-offset: 8px;
+    }`;
+    this.iframe.contentDocument.head.appendChild(style);
   }
 
   // Загрузка страниц из API
