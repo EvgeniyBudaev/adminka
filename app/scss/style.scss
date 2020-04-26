@@ -1,0 +1,20 @@
+@import "_vars";
+@import "_global";
+@import "_fonts";
+
+
+// start section search
+.search__inner {
+  padding: 155px 0px 100px;
+  color: #fff;
+  text-align: center;
+  &-title {
+    margin-bottom: 10px;
+    font-size: 48px;
+    line-height: 72px;
+    font-family: "Roboto", sans-serif;
+    font-weight: 700;
+  }
+}
+// end section search
+
