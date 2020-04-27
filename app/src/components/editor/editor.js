@@ -1,8 +1,10 @@
 import React, { Component, Fragment } from 'react';
 import axios from 'axios';
+import UIkit from 'uikit';
 import "../../helpers/iframeLoader.js";
 import DOMHelper from '../../helpers/dom-helper';
 import EditorText from '../editor-text/editor-text';
+import Spinner from '../spinner';
 
 export default class Editor extends Component {
   constructor() {
@@ -11,9 +13,12 @@ export default class Editor extends Component {
 
     this.state = {
       pageList: [],
-      newPageName: ''
+      newPageName: '',
+      loading: true
     }
     this.createNewPage = this.createNewPage.bind(this);
+    this.isLoading = this.isLoading.bind(this);
+    this.isLoaded = this.isLoaded.bind(this);
   }
 
   componentDidMount() {
@@ -22,11 +27,11 @@ export default class Editor extends Component {
 
   init(page) {
     this.iframe = document.querySelector("iframe");
-    this.open(page);
+    this.open(page, this.isLoaded);
     this.loadPageList();
   }
 
-  open(page) {
+  open(page, calbackLoad) {
     // Записываем ту страницу, которую нужно открыть и сбрасываем кеширование
     this.currentPage = page;
 
@@ -48,15 +53,20 @@ export default class Editor extends Component {
       .then(() => this.enableEditing())
       // Стили при редактировании
       .then(() => this.injectStyles())
+      .then(calbackLoad);
   }
 
-  save() {
+  save(onSuccess, onError) {
+    this.isLoading();
     const newDom = this.virtualDom.cloneNode(this.virtualDom);
     DOMHelper.unwrapTextNodes(newDom);
     const html = DOMHelper.serializeDOMToString(newDom);
     console.log('[html] ', html);
     axios
       .post("../../../api/savePage.php", { pageName: this.currentPage, html })
+      .then(onSuccess)
+      .catch(onError)
+      .finally(this.isLoaded);
   }
 
   // Редактирование
@@ -106,8 +116,25 @@ export default class Editor extends Component {
       .catch(() => alert("Страницы не существует!"))
   }
 
+  isLoading() {
+    this.setState({
+      loading: true
+    })
+  }
+
+  isLoaded() {
+    this.setState({
+      loading: false
+    })
+  }
+
 
   render() {
+    const { loading } = this.state;
+    const modal = true;
+    let spinner;
+
+    loading ? spinner = <Spinner active /> : spinner = <Spinner />
     // const { pageList } = this.state;
     // console.log("pageList ", pageList);
     // const pages = pageList.map((page, index) => {
@@ -126,8 +153,34 @@ export default class Editor extends Component {
 
     return (
       <Fragment>
-        <button onClick={() => this.save()}>Сохранить</button>
         <iframe src={this.currentPage} frameBorder="0"></iframe>
+
+        {spinner}
+
+        <div className="panel">
+          <button className="uk-button uk-button-primary" uk-toggle="target: #modal-save">Опубликовать</button>
+        </div>
+
+        <div id="modal-save" uk-modal={modal.toString()}>
+          <div className="uk-modal-dialog uk-modal-body">
+            <h2 className="uk-modal-title">Сохранение</h2>
+            <p>Вы действительно хотите сохранить изменения?</p>
+            <p className="uk-text-right">
+              <button className="uk-button uk-button-default uk-modal-close" type="button">Отменить</button>
+              <button
+                className="uk-button uk-button-primary uk-modal-close"
+                type="button"
+                onClick={() => this.save(() => {
+                  UIkit.notification({ message: 'Успешно сохранено', status: 'success' })
+                },
+                  () => {
+                    UIkit.notification({ message: 'Ошибка сохранения', status: 'danger' })
+                  }
+                )}
+              >Опубликовать</button>
+            </p>
+          </div>
+        </div>
       </Fragment>
 
 
